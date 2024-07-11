@@ -18,8 +18,8 @@ const int TARGET_2 = 8;
 const int TARGET_3 = 9;
 const int TARGET_4 = 10;
 const int TARGET_5 = 11;
-const int LIGHTS[] = {LIGHT_1, LIGHT_2, LIGHT_3, LIGHT_4, LIGHT_5};
-const int TARGETS[] = {TARGET_1, TARGET_2, TARGET_3, TARGET_4, TARGET_5};
+const int LIGHTS[] = { LIGHT_1, LIGHT_2, LIGHT_3, LIGHT_4, LIGHT_5 };
+const int TARGETS[] = { TARGET_1, TARGET_2, TARGET_3, TARGET_4, TARGET_5 };
 /*
   Foil:
     pin C (far pin)     Guard connected to GND
@@ -54,16 +54,14 @@ void setup() {
   pinMode(INVALID_HIT_LED, OUTPUT);  // on control box and maybe also on target
   pinMode(VALID_HIT_LED, OUTPUT);    // on control box and maybe also on target
 
-  for (int i=0; i<5 ; i++)
-  {
-        
+  for (int i = 0; i < 5; i++) {
   }
 
-  pinMode(LIGHT_1, OUTPUT);          // on target 1
-  pinMode(LIGHT_2, OUTPUT);          // on target 2
-  pinMode(LIGHT_3, OUTPUT);          // on target 3
-  pinMode(LIGHT_4, OUTPUT);          // on target 4
-  pinMode(LIGHT_5, OUTPUT);          // on target 5
+  pinMode(LIGHT_1, OUTPUT);  // on target 1
+  pinMode(LIGHT_2, OUTPUT);  // on target 2
+  pinMode(LIGHT_3, OUTPUT);  // on target 3
+  pinMode(LIGHT_4, OUTPUT);  // on target 4
+  pinMode(LIGHT_5, OUTPUT);  // on target 5
   pinMode(BUZZER, OUTPUT);
 
   // initialize the input pins. INPUT_PULLUP is used to prevent floating state in rest
@@ -96,7 +94,7 @@ void StartNewGame() {
     delay(50);
     //Serial.println("Press tip of foil to start new game:");
   }
-  tipTriggered=false;
+  tipTriggered = false;
   totalHits = 0;
   totalValidHits = 0;
   totalMissed = 0;  // timeout passed
@@ -132,28 +130,28 @@ void EndGame() {
   Serial.println("------------------------");
   StartNewGame();
 }
-void FlashLEDs(int pause) {
-  // flash all target LEDs
-  // turn all the target LEDs ON
-  digitalWrite(LIGHT_1, HIGH);
-  digitalWrite(LIGHT_2, HIGH);
-  digitalWrite(LIGHT_3, HIGH);
-  digitalWrite(LIGHT_4, HIGH);
-  digitalWrite(LIGHT_5, HIGH);
+
+void TurnAllLEDsOn() {
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(LIGHTS[i], HIGH);
+  }
   digitalWrite(VALID_HIT_LED, HIGH);
   digitalWrite(INVALID_HIT_LED, HIGH);
+}
 
-  // Pause before clearing the lights
-  delay(pause);
-
-  digitalWrite(LIGHT_1, LOW);
-  digitalWrite(LIGHT_2, LOW);
-  digitalWrite(LIGHT_3, LOW);
-  digitalWrite(LIGHT_4, LOW);
-  digitalWrite(LIGHT_5, LOW);
+void TurnAllLEDsOff() {
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(LIGHTS[i], LOW);
+  }
   digitalWrite(VALID_HIT_LED, LOW);
   digitalWrite(INVALID_HIT_LED, LOW);
+}
 
+void FlashLEDs(int pause) {
+  TurnAllLEDsOn();
+  // Pause before clearing the lights
+  delay(pause);
+  TurnAllLEDsOff();
   delay(pause / 2);
 }
 
@@ -183,43 +181,15 @@ void BlinkHitLEDs() {
 
 void NextTarget() {
   // lights off
-  digitalWrite(INVALID_HIT_LED, LOW);
-  digitalWrite(VALID_HIT_LED, LOW);
-  digitalWrite(LIGHT_1, LOW);
-  digitalWrite(LIGHT_2, LOW);
-  digitalWrite(LIGHT_3, LOW);
-  digitalWrite(LIGHT_4, LOW);
-  digitalWrite(LIGHT_5, LOW);
-
-  // prevTarget = target;
-
-  // // pick a random target, but not the current one
-  // do {
-  //   target = random(5) + 1;
-  // } while (target == prevTarget);
+  TurnAllLEDsOff();
   target = random(5) + 1;
   if (!tipTriggered) {
     BlinkHitLEDs();
   }
   tipTriggered = false;
   //turn selected target on
-  switch (target) {
-    case 1:
-      digitalWrite(LIGHT_1, HIGH);
-      break;
-    case 2:
-      digitalWrite(LIGHT_2, HIGH);
-      break;
-    case 3:
-      digitalWrite(LIGHT_3, HIGH);
-      break;
-    case 4:
-      digitalWrite(LIGHT_4, HIGH);
-      break;
-    case 5:
-      digitalWrite(LIGHT_5, HIGH);
-      break;
-  }
+  digitalWrite(LIGHTS[target-1], HIGH);
+
   Serial.println(timeToPlay.remaining() / 1000);
   Serial.print("Target: ");
   Serial.println(target);
@@ -274,23 +244,7 @@ void loop() {
   }
   if (tipTriggered) {
     totalHits++;
-    switch (target) {
-      case 1:
-        targval = !digitalRead(TARGET_1);  // pullup, so LOW when hit, HIGH in rest
-        break;
-      case 2:
-        targval = !digitalRead(TARGET_2);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
-        break;
-      case 3:
-        targval = !digitalRead(TARGET_3);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
-        break;
-      case 4:
-        targval = !digitalRead(TARGET_4);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
-        break;
-      case 5:
-        targval = !digitalRead(TARGET_5);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
-        break;
-    }
+    targval = !digitalRead(TARGETS[target -1]);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
     if (targval) {
       ValidHit();
     } else {
