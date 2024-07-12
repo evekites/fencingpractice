@@ -1,5 +1,7 @@
 #include <millisDelay.h>
-/*
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+  /*
 Based on the following code: https://www.agurney.com/fencingprojects/all-weapons-target 
 Reworked the whole code. The tip of the foil is connected to an interrupt, so you can only score when the tup
 of the foil was pressed. This way it is also possible to score an invalid hit.
@@ -35,8 +37,8 @@ Game play
 
 
 */
-// #######################################################
-// this is the initial target light delay in milliseconds, adjust accordingly
+  // #######################################################
+  // this is the initial target light delay in milliseconds, adjust accordingly
 const int TARGET_TIME = 3000;
 const int GAME_TIME = 30000;
 const int TEST_LED_TIME = 800;
@@ -98,7 +100,8 @@ int responseTime;
 void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0));
-
+  lcd.init();
+  lcd.backlight();
   // initialize the LED pins as output:
   pinMode(BUZZER, OUTPUT);
   pinMode(INVALID_HIT_LED, OUTPUT);  // on control box and maybe also on target
@@ -131,10 +134,15 @@ void ISR_WeaponHit() {
 
 void StartNewGame() {
   Serial.println("Press tip of foil to start new game:");
+  lcd.setCursor(0, 0);
+  lcd.print("Press foil tip");
+  lcd.setCursor(0, 1);
+  lcd.print("to start game!");
   while (!digitalRead(WEAPON)) {
     delay(50);
     //Serial.println("Press tip of foil to start new game:");
   }
+  lcd.clear();
   tipTriggered = false;
   totalHits = 0;
   totalValidHits = 0;
