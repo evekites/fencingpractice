@@ -1,7 +1,7 @@
 #include <millisDelay.h>
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-  /*
+/*
 Based on the following code: https://www.agurney.com/fencingprojects/all-weapons-target 
 Reworked the whole code. The tip of the foil is connected to an interrupt, so you can only score when the tup
 of the foil was pressed. This way it is also possible to score an invalid hit.
@@ -37,15 +37,17 @@ Game play
 
 
 */
-  // #######################################################
-  // this is the initial target light delay in milliseconds, adjust accordingly
+// #######################################################
+// this is the initial target light delay in milliseconds, adjust accordingly
 const int TARGET_TIME = 3000;
 const int GAME_TIME = 30000;
-const int TEST_LED_TIME = 800;
-const int END_GAME_LED_TIME = 1200;
+const int TEST_LED_TIME = 500;
+const int END_GAME_LED_TIME = 500;
 const int VALID = 1;
 const int INVALID = 2;
 const int MISSED = 3;
+const int NEW = 4;
+const int END = 5;
 //######################################################
 /*
   Foil:
@@ -62,11 +64,11 @@ const int LIGHT_4 = A3;  // Botom Left LED     this analogue port will be used a
                          //                    A4 A5 reserved for I2C devices (display??)
 const int LIGHT_5 = 6;   // Bottom Right LED   A6/A7 didn't work on my Nano, so L5 = 6 (D6)
 
-const int TARGET_1 = 7;   // Top Left Target Target
-const int TARGET_2 = 8;   // Top Right Target Target
+const int TARGET_1 = 11;  // Top Left Target Target
+const int TARGET_2 = 10;  // Top Right Target Target
 const int TARGET_3 = 9;   // Center Target Target
-const int TARGET_4 = 10;  // Bottom Left Target
-const int TARGET_5 = 11;  // Bottom Right Target
+const int TARGET_4 = 8;   // Bottom Left Target
+const int TARGET_5 = 7;   // Bottom Right Target
 const int LIGHTS[] = { LIGHT_1, LIGHT_2, LIGHT_3, LIGHT_4, LIGHT_5 };
 const int TARGETS[] = { TARGET_1, TARGET_2, TARGET_3, TARGET_4, TARGET_5 };
 
@@ -96,6 +98,9 @@ millisDelay timePerTarget;
 millisDelay timePerGame;
 
 int responseTime;
+int totalTime = 0;
+int avgTime;
+char buff[8];
 
 void setup() {
   Serial.begin(115200);
@@ -134,6 +139,7 @@ void ISR_WeaponHit() {
 
 void StartNewGame() {
   Serial.println("Press tip of foil to start new game:");
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Press foil tip");
   lcd.setCursor(0, 1);
@@ -143,11 +149,14 @@ void StartNewGame() {
     //Serial.println("Press tip of foil to start new game:");
   }
   lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Testing all LEDs");
   tipTriggered = false;
   totalHits = 0;
   totalValidHits = 0;
   totalInvalidHits = 0;
   totalMissed = 0;  // timeout passed
+  totalTime =0;
 
   // write to serial console
   Serial.println("------------------------");
@@ -161,11 +170,18 @@ void StartNewGame() {
   //delay(2000);  // 2 seconds delay before start
   BlinkHitLEDs();
   timePerGame.start(GAME_TIME);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Game started.");
+  lcd.setCursor(0, 1);
+  lcd.print("Hit target now!!");
   NextTarget();
 }
 
 void EndGame() {
-  FlashLEDs(END_GAME_LED_TIME);
+  for (int i = 0; i < 3; i++) {
+    FlashLEDs(END_GAME_LED_TIME);
+  }
   Serial.println("------------------------");
   Serial.println("----- Game Result ------");
   Serial.println("------------------------");
@@ -179,6 +195,15 @@ void EndGame() {
   Serial.println("------------------------");
   Serial.println("------- Game End -------");
   Serial.println("------------------------");
+  lcd.setCursor(0, 0);
+  lcd.print("THE END");
+  sprintf(buff, "%4d/%2d", avgTime, totalHits);
+  lcd.setCursor(0, 1);
+  lcd.print(buff);
+  while (!digitalRead(WEAPON)) {
+    delay(50);
+    //Serial.println("Press tip of foil to start new game:");
+  }
   StartNewGame();
 }
 
@@ -188,6 +213,7 @@ void TurnAllLEDsOn() {
   }
   digitalWrite(VALID_HIT_LED, HIGH);
   digitalWrite(INVALID_HIT_LED, HIGH);
+  tone(BUZZER, 2000);
 }
 
 void TurnAllLEDsOff() {
@@ -196,6 +222,7 @@ void TurnAllLEDsOff() {
   }
   digitalWrite(VALID_HIT_LED, LOW);
   digitalWrite(INVALID_HIT_LED, LOW);
+  noTone(BUZZER);
 }
 
 void FlashLEDs(int pause) {
@@ -247,14 +274,29 @@ void NextTarget() {
   timePerTarget.start(TARGET_TIME);
 }
 
-void PrintStatus(bool status) {
+void PrintStatus(int status) {
+  lcd.clear();
   if (status == VALID) {
     Serial.print("VALID Score: ");
+    lcd.setCursor(0, 0);
+    lcd.print("VALID");
   } else if (status == INVALID) {
     Serial.print("INVALID Score: ");
+    lcd.setCursor(0, 0);
+    lcd.print("INVALID");
   } else if (status == MISSED) {
     Serial.print("MISSED Score: ");
+    lcd.setCursor(0, 0);
+    lcd.print("MISSED");
   }
+  sprintf(buff, "%2d/%2d/%2d", totalValidHits, totalInvalidHits, totalMissed);
+  lcd.setCursor(8, 0);
+  lcd.print(buff);
+  sprintf(buff, "%4d/%2d", responseTime, totalHits);
+  lcd.setCursor(0, 1);
+  lcd.print(buff);
+  lcd.setCursor(8, 1);
+  lcd.print("Va/In/Mi");
   Serial.print("valid hits:");
   Serial.print(totalValidHits);
   Serial.print(", invalid hits:");
@@ -271,7 +313,7 @@ void ValidHit() {
   totalValidHits++;
   PrintStatus(VALID);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 1000);
+  tone(BUZZER, 500);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(VALID_HIT_LED, LOW);
@@ -281,25 +323,31 @@ void InvalidHit() {
   totalInvalidHits++;
   PrintStatus(INVALID);
   digitalWrite(INVALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  tone(BUZZER, 1000);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(INVALID_HIT_LED, LOW);
 }
 
+void Missed() {
+  totalMissed++;
+  PrintStatus(MISSED);
+  NextTarget();
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   if (timePerTarget.remaining() == 0) {
-    totalMissed++;
-    PrintStatus(MISSED);
-    NextTarget();
+    Missed();
   }
-  if (timePerGame.remaining() == 0) {
+  if (timePerGame.remaining() == 0 and timePerTarget.remaining() == 0) {
     EndGame();
   }
 
   if (tipTriggered) {
     totalHits++;
+    totalTime += responseTime;
+    avgTime = totalTime / totalHits;
     targval = !digitalRead(TARGETS[target - 1]);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
     if (targval) {
       ValidHit();
