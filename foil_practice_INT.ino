@@ -48,6 +48,9 @@ const int INVALID = 2;
 const int MISSED = 3;
 const int NEW = 4;
 const int END = 5;
+const bool LCD_CLEAR = true;
+const bool LCD_PRINT = true;
+const bool SERIAL_PRINT = true;
 //######################################################
 /*
   Foil:
@@ -100,7 +103,7 @@ millisDelay timePerGame;
 int responseTime;
 int totalTime = 0;
 int avgTime;
-char buff[8];
+char buff[16];
 
 void setup() {
   Serial.begin(115200);
@@ -137,73 +140,63 @@ void ISR_WeaponHit() {
   responseTime = TARGET_TIME - timePerTarget.remaining();  // in millisecs
 }
 
+
+void printLCDandSerial(bool clear, int x, int y, bool lcdprint, bool serialprint, char message[16]) {
+  if (clear) {
+    if (lcdprint) {
+      lcd.clear();
+    }
+    if (serialprint) {
+      Serial.println();
+    }
+  }
+  if (lcdprint) {
+    lcd.setCursor(x, y);
+    lcd.print(message);
+  }
+  if (serialprint)
+  {
+    Serial.println(message);
+  }
+}
+
 void StartNewGame() {
-  Serial.println("Press tip of foil to start new game:");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Press foil tip");
-  lcd.setCursor(0, 1);
-  lcd.print("to start game!");
+  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "Press foil tip");
+  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, "to start game!");
   while (!digitalRead(WEAPON)) {
     delay(50);
-    //Serial.println("Press tip of foil to start new game:");
   }
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Testing all LEDs");
   tipTriggered = false;
   totalHits = 0;
   totalValidHits = 0;
   totalInvalidHits = 0;
-  totalMissed = 0;  // timeout passed
-  totalTime =0;
-
-  // write to serial console
-  Serial.println("------------------------");
-  Serial.println("----- Foil target ------");
-  Serial.println("------- New game ------");
-  Serial.println("------------------------");
-  // loop three times to flash lights to confirm all are OK
-  for (int i = 1; i <= 3; i++) {
+  totalMissed = 0;  // no valid nor invalid hit within TARGET_TIME ms
+  totalTime = 0;
+  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "Testing all LEDs");
+  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, "PRETS?");
+    // loop three times to flash lights to confirm all are OK
+    for (int i = 1; i <= 3; i++) {
     FlashLEDs(TEST_LED_TIME);
   }
   //delay(2000);  // 2 seconds delay before start
   BlinkHitLEDs();
   timePerGame.start(GAME_TIME);
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Game started.");
-  lcd.setCursor(0, 1);
-  lcd.print("Hit target now!!");
+  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "ALLEZ");
   NextTarget();
 }
 
 void EndGame() {
+  printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "HALT    ");
+  sprintf(buff, "%4d/%2d", avgTime, totalHits);
+  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, buff);
   for (int i = 0; i < 3; i++) {
     FlashLEDs(END_GAME_LED_TIME);
   }
-  Serial.println("------------------------");
-  Serial.println("----- Game Result ------");
-  Serial.println("------------------------");
-  Serial.println("Score:");
-  Serial.print(totalValidHits);
-  Serial.println(" valid hits");
-  Serial.print(totalInvalidHits);
-  Serial.println(" invalid hits");
-  Serial.print(totalMissed);
-  Serial.println(" missed: ");
-  Serial.println("------------------------");
-  Serial.println("------- Game End -------");
-  Serial.println("------------------------");
-  lcd.setCursor(0, 0);
-  lcd.print("THE END");
-  sprintf(buff, "%4d/%2d", avgTime, totalHits);
-  lcd.setCursor(0, 1);
-  lcd.print(buff);
+
   while (!digitalRead(WEAPON)) {
     delay(50);
-    //Serial.println("Press tip of foil to start new game:");
   }
+  delay(500);
   StartNewGame();
 }
 
@@ -213,7 +206,7 @@ void TurnAllLEDsOn() {
   }
   digitalWrite(VALID_HIT_LED, HIGH);
   digitalWrite(INVALID_HIT_LED, HIGH);
-  tone(BUZZER, 2000);
+  tone(BUZZER, 500);
 }
 
 void TurnAllLEDsOff() {
@@ -238,7 +231,7 @@ void BlinkHitLEDs() {
   // Blink the eyes
   digitalWrite(INVALID_HIT_LED, HIGH);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 2000);
+  tone(BUZZER, 500);
   delay(200);
 
   digitalWrite(INVALID_HIT_LED, LOW);
@@ -248,7 +241,7 @@ void BlinkHitLEDs() {
 
   digitalWrite(INVALID_HIT_LED, HIGH);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 2000);
+  tone(BUZZER, 500);
   delay(200);
 
   digitalWrite(INVALID_HIT_LED, LOW);
@@ -270,50 +263,33 @@ void NextTarget() {
   tone(BUZZER, 2000);
   delay(100);
   noTone(BUZZER);
-  Serial.println("Alez!");
+  printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "ALLEZ   ");
   timePerTarget.start(TARGET_TIME);
 }
 
 void PrintStatus(int status) {
-  lcd.clear();
+  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "");
   if (status == VALID) {
-    Serial.print("VALID Score: ");
-    lcd.setCursor(0, 0);
-    lcd.print("VALID");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "TOUCHE");
   } else if (status == INVALID) {
-    Serial.print("INVALID Score: ");
-    lcd.setCursor(0, 0);
-    lcd.print("INVALID");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "INCOR.");
   } else if (status == MISSED) {
-    Serial.print("MISSED Score: ");
-    lcd.setCursor(0, 0);
-    lcd.print("MISSED");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "NO HIT");
   }
   sprintf(buff, "%2d/%2d/%2d", totalValidHits, totalInvalidHits, totalMissed);
-  lcd.setCursor(8, 0);
-  lcd.print(buff);
+  printLCDandSerial(!LCD_CLEAR, 8, 0, true, true, buff);
+
   sprintf(buff, "%4d/%2d", responseTime, totalHits);
-  lcd.setCursor(0, 1);
-  lcd.print(buff);
-  lcd.setCursor(8, 1);
-  lcd.print("Va/In/Mi");
-  Serial.print("valid hits:");
-  Serial.print(totalValidHits);
-  Serial.print(", invalid hits:");
-  Serial.print(totalInvalidHits);
-  Serial.print(", missed:");
-  Serial.print(totalMissed);
-  Serial.print(", response: ");
-  Serial.print(responseTime);
-  Serial.print("ms, game time left: ");
-  Serial.println(timePerGame.remaining() / 1000);
+  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, buff);
+  
+  printLCDandSerial(!LCD_CLEAR, 8, 1, true, false, "To/In/No");
 }
 
 void ValidHit() {
   totalValidHits++;
   PrintStatus(VALID);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  tone(BUZZER, 1000);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(VALID_HIT_LED, LOW);
@@ -323,7 +299,7 @@ void InvalidHit() {
   totalInvalidHits++;
   PrintStatus(INVALID);
   digitalWrite(INVALID_HIT_LED, HIGH);
-  tone(BUZZER, 1000);
+  tone(BUZZER, 500);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(INVALID_HIT_LED, LOW);
