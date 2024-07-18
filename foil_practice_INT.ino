@@ -1,6 +1,7 @@
 #include <millisDelay.h>
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+#define DEBUG
 /*
 Based on the following code: https://www.agurney.com/fencingprojects/all-weapons-target 
 Reworked the whole code. The tip of the foil is connected to an interrupt, so you can only score when the tup
@@ -38,7 +39,6 @@ Game play
 
 */
 // #######################################################
-// this is the initial target light delay in milliseconds, adjust accordingly
 const int TARGET_TIME = 3000;
 const int GAME_TIME = 30000;
 const int TEST_LED_TIME = 500;
@@ -140,7 +140,14 @@ void ISR_WeaponHit() {
   responseTime = TARGET_TIME - timePerTarget.remaining();  // in millisecs
 }
 
+// Function to play a tone, but not during DEBUG (the buzzer is anyoing)
+void playTone(int buzzerPin, unsigned int frequency) {
+#ifndef DEBUG
+  tone(buzzerPin, frequency);
+#endif
+}
 
+// Function to print an array of 16 chars to both 16x2 LCD and Serial!
 void printLCDandSerial(bool clear, int x, int y, bool lcdprint, bool serialprint, char message[16]) {
   if (clear) {
     if (lcdprint) {
@@ -154,15 +161,20 @@ void printLCDandSerial(bool clear, int x, int y, bool lcdprint, bool serialprint
     lcd.setCursor(x, y);
     lcd.print(message);
   }
-  if (serialprint)
-  {
+  if (serialprint) {
     Serial.println(message);
   }
 }
 
+// Function to start a new game
+// start the timePerGame session
+// reset some variables
+// flash all LED's and sound the buzzer
+// blink the hit LED's and sound the buzzer
+// and finaly activate nextTarget()
 void StartNewGame() {
-  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "Press foil tip");
-  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, "to start game!");
+  printLCDandSerial(LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "Press foil tip");
+  printLCDandSerial(!LCD_CLEAR, 0, 1, LCD_PRINT, SERIAL_PRINT, "to start game!");
   while (!digitalRead(WEAPON)) {
     delay(50);
   }
@@ -172,27 +184,33 @@ void StartNewGame() {
   totalInvalidHits = 0;
   totalMissed = 0;  // no valid nor invalid hit within TARGET_TIME ms
   totalTime = 0;
-  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "Testing all LEDs");
-  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, "PRETS?");
-    // loop three times to flash lights to confirm all are OK
-    for (int i = 1; i <= 3; i++) {
+  avgTime = 0;
+  printLCDandSerial(LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "Testing all LEDs");
+  printLCDandSerial(!LCD_CLEAR, 0, 1, LCD_PRINT, SERIAL_PRINT, "PRETS?");
+  // loop three times to flash lights to confirm all are OK
+  for (int i = 1; i <= 3; i++) {
     FlashLEDs(TEST_LED_TIME);
   }
   //delay(2000);  // 2 seconds delay before start
   BlinkHitLEDs();
   timePerGame.start(GAME_TIME);
-  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "ALLEZ");
+  printLCDandSerial(LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "ALLEZ");
   NextTarget();
 }
 
+// Function to end the current game
+// Printing HALT
+// Printing avgTime 
+// Other statistics are allready visible (Touche, Incorrect & Missed)
+// flash all LED's and sound the buzzer
+// Waits for pressing on the foil tip and then activate StartNewGame()
 void EndGame() {
-  printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "HALT    ");
-  sprintf(buff, "%4d/%2d", avgTime, totalHits);
-  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, buff);
+  printLCDandSerial(!LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "HALT    ");
+  sprintf(buff, "%4d ms", avgTime);
+  printLCDandSerial(!LCD_CLEAR, 0, 1, LCD_PRINT, SERIAL_PRINT, buff);
   for (int i = 0; i < 3; i++) {
     FlashLEDs(END_GAME_LED_TIME);
   }
-
   while (!digitalRead(WEAPON)) {
     delay(50);
   }
@@ -200,15 +218,17 @@ void EndGame() {
   StartNewGame();
 }
 
+// Function to turn on all LED's (target LED's and hit LED's) and sound buzzer
 void TurnAllLEDsOn() {
   for (int i = 0; i < 5; i++) {
     digitalWrite(LIGHTS[i], HIGH);
   }
   digitalWrite(VALID_HIT_LED, HIGH);
   digitalWrite(INVALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  playTone(BUZZER, 500);
 }
 
+// Function to turn off all LED's (target LED's and hit LED's) and turn off sound buzzer
 void TurnAllLEDsOff() {
   for (int i = 0; i < 5; i++) {
     digitalWrite(LIGHTS[i], LOW);
@@ -218,6 +238,7 @@ void TurnAllLEDsOff() {
   noTone(BUZZER);
 }
 
+// Function to flash all LED's during a specified duration
 void FlashLEDs(int pause) {
   TurnAllLEDsOn();
   // Pause before clearing the lights
@@ -226,12 +247,12 @@ void FlashLEDs(int pause) {
   delay(pause / 2);
 }
 
-
+// Function to blink the hit LED's and a buzzer twice
 void BlinkHitLEDs() {
   // Blink the eyes
   digitalWrite(INVALID_HIT_LED, HIGH);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  playTone(BUZZER, 500);
   delay(200);
 
   digitalWrite(INVALID_HIT_LED, LOW);
@@ -241,7 +262,7 @@ void BlinkHitLEDs() {
 
   digitalWrite(INVALID_HIT_LED, HIGH);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  playTone(BUZZER, 500);
   delay(200);
 
   digitalWrite(INVALID_HIT_LED, LOW);
@@ -250,46 +271,51 @@ void BlinkHitLEDs() {
   delay(500);
 }
 
+// Function to select a new target
 void NextTarget() {
   // lights off
   TurnAllLEDsOff();
   target = random(5) + 1;
   if (!tipTriggered) {
-    BlinkHitLEDs();
+    BlinkHitLEDs(); // I don't know anymore in which situation this will be executed!!
   }
-  tipTriggered = false;
+  tipTriggered = false; // tipTriggerd is reset to restore from a double hit!
   //turn selected target on
   digitalWrite(LIGHTS[target - 1], HIGH);  // target_1 is at position 0 in array, so [target -1]
-  tone(BUZZER, 2000);
+  playTone(BUZZER, 2000);
   delay(100);
   noTone(BUZZER);
-  printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "ALLEZ   ");
+  printLCDandSerial(!LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "ALLEZ   ");
   timePerTarget.start(TARGET_TIME);
 }
 
 void PrintStatus(int status) {
-  printLCDandSerial(LCD_CLEAR, 0, 0, true, true, "");
+  printLCDandSerial(LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "");
   if (status == VALID) {
-    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "TOUCHE");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "TOUCHE");
   } else if (status == INVALID) {
-    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "INCOR.");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "INCOR.");
   } else if (status == MISSED) {
-    printLCDandSerial(!LCD_CLEAR, 0, 0, true, true, "NO HIT");
+    printLCDandSerial(!LCD_CLEAR, 0, 0, LCD_PRINT, SERIAL_PRINT, "NO HIT");
+    responseTime=TARGET_TIME;
   }
   sprintf(buff, "%2d/%2d/%2d", totalValidHits, totalInvalidHits, totalMissed);
-  printLCDandSerial(!LCD_CLEAR, 8, 0, true, true, buff);
+  printLCDandSerial(!LCD_CLEAR, 8, 0, LCD_PRINT, SERIAL_PRINT, buff);
 
-  sprintf(buff, "%4d/%2d", responseTime, totalHits);
-  printLCDandSerial(!LCD_CLEAR, 0, 1, true, true, buff);
-  
-  printLCDandSerial(!LCD_CLEAR, 8, 1, true, false, "To/In/No");
+  sprintf(buff, "%4d ms", responseTime); // responseTime is the time for the previous hit VALID/INVALID/MISSED
+  printLCDandSerial(!LCD_CLEAR, 0, 1, LCD_PRINT, SERIAL_PRINT, buff);
+
+  printLCDandSerial(!LCD_CLEAR, 8, 1, LCD_PRINT, !SERIAL_PRINT, "To/In/No");
 }
 
 void ValidHit() {
   totalValidHits++;
+  totalTime += responseTime;
+  avgTime = totalTime / totalValidHits; // only calculate avgTime for valid hits
+
   PrintStatus(VALID);
   digitalWrite(VALID_HIT_LED, HIGH);
-  tone(BUZZER, 1000);
+  playTone(BUZZER, 1000);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(VALID_HIT_LED, LOW);
@@ -299,7 +325,7 @@ void InvalidHit() {
   totalInvalidHits++;
   PrintStatus(INVALID);
   digitalWrite(INVALID_HIT_LED, HIGH);
-  tone(BUZZER, 500);
+  playTone(BUZZER, 500);
   delay(1000);
   noTone(BUZZER);
   digitalWrite(INVALID_HIT_LED, LOW);
@@ -316,14 +342,13 @@ void loop() {
   if (timePerTarget.remaining() == 0) {
     Missed();
   }
-  if (timePerGame.remaining() == 0 and timePerTarget.remaining() == 0) {
+  if (timePerGame.remaining() == 0) {
     EndGame();
   }
 
   if (tipTriggered) {
     totalHits++;
-    totalTime += responseTime;
-    avgTime = totalTime / totalHits;
+
     targval = !digitalRead(TARGETS[target - 1]);  // pullup, so LOW when hit, HIGH in rest, so targvalue is the opposite
     if (targval) {
       ValidHit();
